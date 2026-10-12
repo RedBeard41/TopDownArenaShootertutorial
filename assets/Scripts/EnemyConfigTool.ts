@@ -1,7 +1,8 @@
 import { _decorator, CCFloat, Component, director, Node, Vec2 } from 'cc';
 import { EnemyConfig, WhiskerConfig } from './EnemyConfig';
 import { Enemy } from './Enemy';
-const { ccclass, property } = _decorator;
+import { EDITOR } from 'cc/env';
+const { ccclass, property, executeInEditMode} = _decorator;
 
 @ccclass('WhiskerconfigEditor')
 export class WhiskerConfigEditor implements WhiskerConfig {
@@ -17,6 +18,8 @@ export class WhiskerConfigEditor implements WhiskerConfig {
 }
 
 @ccclass('EnemyConfigTool')
+@executeInEditMode
+
 export class EnemyConfigTool extends Component {
 	@property({ group: 'Enemy base' })
 	public scale: Vec2 = new Vec2(1, 1)
@@ -105,6 +108,18 @@ export class EnemyConfigTool extends Component {
 		})(),
 		]
 	
+	@property({ group: 'Export Config' })
+	public configNamePrefix: string = 'Swarm'
+
+	@property({ group: 'Export Config', tooltip: 'Export JSON' })
+	get generateJSONFile(): boolean {
+		return false
+	}
+
+	set generateJSONFile(value: boolean) {
+		if (value) this.generateJSON()
+	}
+	
 	private enemyConfig: EnemyConfig
 
 	protected onLoad() {
@@ -145,7 +160,44 @@ export class EnemyConfigTool extends Component {
 		}
 	}
 
+	private generateJSON() {
 
+		let exportData = this.enemyConfig
+
+		let jsonString = JSON.stringify(exportData, null, 4)
+		let fileName = `${this.configNamePrefix}_enemyConfig.json`
+
+		if (EDITOR) {
+			try {
+				const fs = globalThis.require('fs')
+				const path = globalThis.require('path')
+
+				// @ts-ignore
+				const projectPath = Editor.Project.path
+				const saveDir = path.join(projectPath, 'assets', 'Configs')
+
+				if (!fs.existsSync(saveDir)) {
+					fs.mkdirSync(saveDir, { recursive: true })
+				}
+
+				const savePath = path.join(saveDir, fileName)
+				fs.writeFileSync(savePath, jsonString)
+
+				let dbURL = 'db://assets/Configs/${fileName}'
+				if (globalThis.Editor && globalThis.Editor.Message) {
+					globalThis.Editor.Message.request('asset-db', 'refresh-asset', dbURL)
+				} else {
+					console.log('[Config Tool] Editor.message IPC not accessible from this scene Process')
+				}
+
+				console.log(`[Config Tool] Exported config to ${savePath}`)
+
+			} catch (error) {
+				console.error('[Config Tool] Node.js save failed', error)
+			}
+
+		}
+	}
 
 }
 
